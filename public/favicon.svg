@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">JM/26</title>
+  <rect width="128" height="128" rx="14" fill="#f3f1e9"/>
+  <text
+    x="8"
+    y="79"
+    fill="#14251e"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="49"
+    font-weight="800"
+    letter-spacing="-4"
+  >JM</text>
+  <text
+    x="64"
+    y="79"
+    fill="#95ad39"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="47"
+    font-weight="800"
+    letter-spacing="-3"
+  >/26</text>
+</svg>

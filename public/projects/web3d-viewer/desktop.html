@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Web3D Viewer — Joe Martens</title>
+
+  <style>
+    :root {
+      --portfolio-paper: #f3f1e9;
+      --portfolio-paper-deep: #e5e6dc;
+      --portfolio-ink: #14251e;
+      --portfolio-muted: #aeb9b1;
+      --portfolio-line: rgba(201, 206, 195, 0.28);
+      --portfolio-accent: #95ad39;
+      --portfolio-accent-bright: #c8e268;
+      --portfolio-dark: #10251d;
+      --portfolio-white: #fffef9;
+    }
+
+    html, body { margin: 0; padding: 0; width:100vw; height:100vh; overflow: hidden; }
+    body {
+      background: var(--portfolio-dark);
+      color: var(--portfolio-white);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    canvas { display: block; touch-action: none; }
+
+    #loadingSpinner {
+      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+      background:rgba(16,37,29,0.94); color:var(--portfolio-accent-bright);
+      border:1px solid var(--portfolio-line);
+      font-family:inherit; font-size:0.78rem; font-weight:700; letter-spacing:0.08em;
+      text-transform:uppercase; padding:1.25rem 1.6rem; border-radius:4px;
+      box-shadow:0 18px 55px rgba(7,18,14,0.32);
+      z-index:150;
+    }
+
+    #menu {
+      position: absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      background:rgba(16,37,29,0.97); color:var(--portfolio-white); padding:2em 3vw; border-radius:4px; text-align:center;
+      border:1px solid var(--portfolio-line);
+      font-family:inherit; box-shadow: 0 18px 64px rgba(7,18,14,0.38);
+      z-index:100; min-width:230px; max-width:96vw; display:none;
+    }
+    #menu label { display:block; margin-bottom:0.7em; font-size:1.08em; }
+    #menu input[type="range"] { width:90vw; }
+    #menu .slider-tip { color:var(--portfolio-muted); font-size:0.95em; margin-bottom:0.6em; }
+    #menu input[type="checkbox"] { transform: scale(1.2); margin-right:0.5em; }
+    #menu button {
+      background:var(--portfolio-accent); color:var(--portfolio-dark); border:1px solid var(--portfolio-accent);
+      padding:0.7em 2em; border-radius:4px; font-size:0.78em; font-weight:750;
+      letter-spacing:0.05em; text-transform:uppercase; margin-top:1.2em;
+    }
+    #menu button:last-child {
+      background:transparent;
+      color:var(--portfolio-accent-bright);
+      border-color:var(--portfolio-line);
+      margin-left:1em;
+    }
+
+    body.embedded #menu {
+      width: min(420px, 48vw);
+      min-width: 0;
+      max-width: 48vw;
+      padding: 8px 11px;
+      border-radius: 10px;
+      box-shadow: 0 10px 34px rgba(0,0,0,0.32);
+    }
+    body.embedded #menu label {
+      margin-bottom: 3px;
+      font-size: 0.66em;
+    }
+    body.embedded #menu input[type="range"] {
+      width: min(340px, 38vw);
+      height: 12px;
+    }
+    body.embedded #menu .slider-tip {
+      margin-bottom: 2px;
+      font-size: 0.58em;
+    }
+    body.embedded #menu input[type="checkbox"] {
+      transform: scale(0.72);
+      margin-right: 0.2em;
+    }
+    body.embedded #menu button {
+      padding: 0.32em 0.8em;
+      border-radius: 8px;
+      font-size: 0.62em;
+      margin-top: 4px;
+    }
+    body.embedded #menu button:last-child {
+      margin-left: 5px;
+    }
+
+    body.touch-mode:not(.embedded) #menu {
+      width: min(560px, 76vw);
+      min-width: 0;
+      max-width: 76vw;
+      max-height: calc(100vh - 28px);
+      overflow: auto;
+      padding: 10px 14px;
+      border-radius: 12px;
+    }
+    body.touch-mode:not(.embedded) #menu label {
+      margin-bottom: 4px;
+      font-size: 0.78em;
+    }
+    body.touch-mode:not(.embedded) #menu input[type="range"] {
+      width: min(500px, 68vw);
+      height: 14px;
+    }
+    body.touch-mode:not(.embedded) #menu .slider-tip {
+      margin-bottom: 3px;
+      font-size: 0.68em;
+    }
+    body.touch-mode:not(.embedded) #menu input[type="checkbox"] {
+      transform: scale(0.85);
+      margin-right: 0.25em;
+    }
+    body.touch-mode:not(.embedded) #menu button {
+      padding: 0.45em 1em;
+      border-radius: 8px;
+      font-size: 0.72em;
+      margin-top: 6px;
+    }
+
+    body.touch-mode #desktopControls { display: none !important; }
+    body.desktop-mode #mobileControls { display: none !important; }
+
+    #mobileControls { pointer-events:none; }
+    #mobileControls * { pointer-events:auto; user-select:none; -webkit-user-select:none; }
+    #touchHint {
+      position: fixed;
+      left: calc(12px + env(safe-area-inset-left));
+      top: calc(12px + env(safe-area-inset-top));
+      z-index: 54;
+      display: none;
+      max-width: min(440px, calc(100vw - 24px));
+      padding: 10px 12px;
+      border: 1px solid rgba(63,207,142,0.35);
+      border-radius: 12px;
+      background: rgba(20,20,20,0.78);
+      color: #e6f4ee;
+      font: 700 0.9rem/1.35 sans-serif;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+      pointer-events: none;
+    }
+    body.touch-mode #touchHint { display: block; }
+    #touchHint strong { color:#80efbb; }
+    #mobileButtonStack {
+      position: fixed;
+      right: calc(12px + env(safe-area-inset-right));
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 50;
+      display:grid;
+      grid-template-columns: repeat(2, 38px);
+      gap:7px;
+    }
+    .mobile-action-btn {
+      width:38px;
+      height:38px;
+      border-radius:50%;
+      border: 1px solid rgba(63,207,142,0.26);
+      background:#222;
+      color:#3fcf8e;
+      font: 700 0.68rem/1 sans-serif;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.24);
+    }
+    .mobile-action-btn.vertical {
+      background:#3fcf8e;
+      color:#222;
+      font-size:1rem;
+    }
+    .mobile-action-btn.speed {
+      background: rgba(20,20,20,0.9);
+      border-color: rgba(63,207,142,0.42);
+      font-size: 0.9rem;
+    }
+    body.embedded #touchHint {
+      left: 8px;
+      top: 8px;
+      max-width: min(250px, calc(100vw - 16px));
+      padding: 4px 6px;
+      border-radius: 8px;
+      font-size: 0.48rem;
+      line-height: 1.2;
+    }
+    body.embedded #joystickZone {
+      left: 8px !important;
+      bottom: 8px !important;
+      width: 64px !important;
+      height: 64px !important;
+    }
+    body.embedded #mobileButtonStack {
+      right: 8px;
+      bottom: 8px;
+      grid-template-columns: repeat(2, 26px);
+      gap: 4px;
+    }
+    body.embedded .mobile-action-btn {
+      width: 26px;
+      height: 26px;
+      font-size: 0.48rem;
+    }
+    body.embedded .mobile-action-btn.vertical {
+      font-size: 0.72rem;
+    }
+    body.embedded .mobile-action-btn.speed {
+      font-size: 0.64rem;
+    }
+
+    #desktopControls {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 55;
+      display: none;
+      box-sizing: border-box;
+      max-width: calc(100vw - 28px);
+      gap: 8px;
+      align-items: center;
+      font-family: inherit;
+      color: var(--portfolio-white);
+      background: rgba(16,37,29,0.88);
+      border: 1px solid var(--portfolio-line);
+      border-radius: 4px;
+      padding: 9px 10px;
+      user-select: none;
+    }
+    #desktopControls button {
+      flex: 0 0 auto;
+      width: 42px;
+      height: 42px;
+      border-radius: 3px;
+      border: 1px solid var(--portfolio-line);
+      background: rgba(255,254,249,0.04);
+      color: var(--portfolio-accent-bright);
+      font-size: 0.68em;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+    }
+
+    body.embedded #desktopControls {
+      left: 10px;
+      bottom: 10px;
+      max-width: calc(100vw - 20px);
+      gap: 5px;
+      padding: 6px 7px;
+      border-radius: 10px;
+    }
+    body.embedded #desktopControls button {
+      width: 32px;
+      height: 32px;
+      font-size: 0.62em;
+    }
+    body.embedded #pointerState {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 0.74em;
+    }
+    #desktopControls button:focus-visible,
+    #menu button:focus-visible,
+    #layerPanel button:focus-visible,
+    #layerPanel input:focus-visible,
+    #menu input:focus-visible {
+      outline: 2px solid #3fcf8e;
+      outline-offset: 3px;
+    }
+    #pointerState {
+      min-width: 170px;
+      overflow: hidden;
+      font-family: "Courier New", monospace;
+      font-size: 0.78em;
+      color: var(--portfolio-muted);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #layerList label.layer-selected {
+      background: rgba(149,173,57,0.2);
+      border-radius: 3px;
+    }
+    #layerList .layer-toggle-row {
+      cursor: pointer;
+      justify-content: space-between;
+    }
+    #layerList .layer-name {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.98em;
+    }
+    #layerList .layer-toggle-input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #layerList .layer-switch {
+      position: relative;
+      flex: 0 0 auto;
+      width: 42px;
+      height: 23px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.16);
+      border: 1px solid rgba(255,255,255,0.18);
+      transition: background 160ms ease, border-color 160ms ease;
+    }
+    #layerList .layer-switch::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: #d7e2dd;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.38);
+      transition: transform 160ms ease, background 160ms ease;
+    }
+    #layerList .layer-toggle-input:checked + .layer-switch {
+      background: var(--portfolio-accent);
+      border-color: var(--portfolio-accent);
+    }
+    #layerList .layer-toggle-input:checked + .layer-switch::after {
+      transform: translateX(19px);
+      background: var(--portfolio-dark);
+    }
+
+    input[type="range"],
+    input[type="checkbox"] {
+      accent-color: var(--portfolio-accent);
+    }
+
+    button {
+      font-family: inherit;
+      transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease,
+        transform 160ms ease;
+    }
+
+    button:hover {
+      border-color: var(--portfolio-accent) !important;
+      color: var(--portfolio-accent-bright) !important;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    #touchHint,
+    #layerPanel {
+      background: rgba(16,37,29,0.94) !important;
+      color: var(--portfolio-white) !important;
+      border: 1px solid var(--portfolio-line) !important;
+      border-radius: 4px !important;
+      box-shadow: 0 18px 55px rgba(7,18,14,0.32) !important;
+      font-family: inherit !important;
+    }
+
+    #touchHint strong {
+      color: var(--portfolio-accent-bright);
+    }
+
+    .mobile-action-btn {
+      border-radius: 3px;
+      border-color: var(--portfolio-line);
+      background: rgba(16,37,29,0.94);
+      color: var(--portfolio-accent-bright);
+    }
+
+    .mobile-action-btn.vertical,
+    #btnLayersAllOn {
+      background: var(--portfolio-accent) !important;
+      color: var(--portfolio-dark) !important;
+      border-color: var(--portfolio-accent) !important;
+    }
+
+    .mobile-action-btn.speed,
+    #btnCloseLayerPanel,
+    #btnLayersAllOff {
+      background: rgba(255,254,249,0.04) !important;
+      color: var(--portfolio-accent-bright) !important;
+      border: 1px solid var(--portfolio-line) !important;
+    }
+
+    #layerPanel button {
+      border-radius: 3px !important;
+      font-family: inherit;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+    }
+
+    @media (max-width:600px) {
+      #menu { padding:1em 2vw; }
+      #menu label { font-size:1em; }
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.9.0/dist/nipplejs.min.js"></script>
+</head>
+
+<body>
+  <div id="loadingSpinner">Lade Modell ...</div>
+
+  <script>
+    if (new URLSearchParams(window.location.search).has('embed')) {
+      document.body.classList.add('embedded');
+    }
+  </script>
+
+  <div id="menu">
+    <label for="speedSlider">Bewegungsgeschwindigkeit: <span id="speedValue">30</span></label>
+    <input type="range" min="0" max="30" step="0.1" id="speedSlider" value="20">
+    <div class="slider-tip">(Sprint: <span id="sprintValue">40</span>)</div>
+
+    <label for="scaleSlider" style="margin-top:1.4em;">Modell-Scale: <span id="scaleValue">0.02</span></label>
+    <input type="range" min="0.001" max="0.08" step="0.0001" id="scaleSlider" value="0.02">
+    <div class="slider-tip"></div>
+
+    <label for="fovSlider" style="margin-top:1.4em;">Sichtfeld / FOV: <span id="fovValue">75</span>°</label>
+    <input type="range" min="35" max="110" step="1" id="fovSlider" value="75">
+    <div class="slider-tip">Kleiner = Zoom, größer = Weitwinkel</div>
+
+<div style="margin-top:1.4em; display:flex; gap:14px; justify-content:center; align-items:center; flex-wrap:wrap;">
+  <label style="display:flex; align-items:center; gap:8px; margin:0;">
+    <input type="checkbox" id="flyToggle">
+    <span>Flugmodus</span>
+  </label>
+
+  <label style="display:flex; align-items:center; gap:8px; margin:0;">
+    <input type="checkbox" id="sunToggle" checked>
+    <span>Sonne + Schatten</span>
+  </label>
+</div>
+
+
+    <button id="toggleExplode">Schichten aufklappen</button>
+
+    <button id="resetPosition">Zurück zum Start</button>
+    <button id="closeMenu">Schließen</button>
+  </div>
+
+  <div id="mobileControls" style="display:none;">
+    <div id="joystickZone" style="position:fixed; left:10px; bottom:10px; width:110px; height:110px; z-index:50;"></div>
+    <div id="mobileButtonStack">
+      <button id="btnMenu" class="mobile-action-btn">MEN</button>
+      <button id="btnSpeedUp" class="mobile-action-btn speed">+</button>
+      <button id="btnExplode" class="mobile-action-btn">E</button>
+      <button id="btnSpeedDown" class="mobile-action-btn speed">-</button>
+      <button id="btnLayers" class="mobile-action-btn">L</button>
+      <button id="btnUp" class="mobile-action-btn vertical">↑</button>
+      <button id="btnDown" class="mobile-action-btn vertical">↓</button>
+    </div>
+    <div id="touchHint"><strong>Touch:</strong> links ziehen = bewegen, rechts ziehen = umsehen. E klappt Schichten auf, L zeigt Layer. In der großen Ansicht ist mehr Platz.</div>
+  </div>
+
+  <div id="desktopControls">
+    <button id="desktopMenu" title="Menü">MENU</button>
+    <button id="desktopExplode" title="Schichten aufklappen">EXP</button>
+    <button id="desktopLayers" title="Layer">LAY</button>
+    <button id="desktopReset" title="Zurück zum Start">RST</button>
+    <div id="pointerState">Tab: Mauszeiger freigeben</div>
+  </div>
+
+  <!-- Mobile Layer Panel -->
+  <div id="layerPanel" style="
+    position:fixed; right:12px; top: calc(12px + env(safe-area-inset-top)); z-index:60;
+    background:rgba(20,20,20,0.92); color:#fff;
+    padding:12px; border-radius:14px; font-family:sans-serif;
+    width:min(260px, 82vw);
+    display:none;
+    box-shadow:0 16px 64px rgba(0,0,0,0.35);
+  ">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <div style="font-weight:700;">Layer</div>
+      <button id="btnCloseLayerPanel" style="
+        background:#222; color:#3fcf8e; border:none; border-radius:10px;
+        padding:6px 10px; font-size:0.95em;
+      ">✕</button>
+    </div>
+
+    <div style="display:flex; gap:10px; margin:10px 0 8px;">
+      <button id="btnLayersAllOn" style="
+        flex:1; background:#3fcf8e; color:#222; border:none;
+        border-radius:10px; padding:8px; font-size:0.95em;
+      ">Alle an</button>
+      <button id="btnLayersAllOff" style="
+        flex:1; background:#222; color:#3fcf8e; border:1px solid #3fcf8e;
+        border-radius:10px; padding:8px; font-size:0.95em;
+      ">Alle aus</button>
+    </div>
+
+    <div id="layerList" style="max-height:44vh; overflow:auto; padding-right:6px;"></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://esm.sh/three@0.160.0';
+    import { GLTFLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+
+    const MODEL_URL = './model.glb';
+    const LOCAL_MODEL_FALLBACK_URL = 'http://127.0.0.1:8017/model.glb';
+
+    const LAYER_LABELS = {
+      "L_01": "Boden",
+      "L_02": "Leitungen",
+      "L_03": "Boden2",
+      "L_04": "Einfassungen",
+      "L_05": "Cortenstahl",
+      "L_06": "Hortisole",
+      "L_07": "SandLounge",
+      "L_08": "GräserBeete",
+      "L_09": "StaudenBeete",
+      "L_10": "Rasenfläche",
+      "L_11": "Pflasterflächen",
+      "L_12": "Wasserbecken",
+      "L_13": "Wegedecke",
+      "L_14": "Teakholzdeck",
+      "L_15": "Hecke",
+      "L_16": "Zaun",
+      "L_17": "Haus"
+    };
+
+    let camera, scene, renderer;
+    let environmentGroup;
+    let environmentGround;
+    let model, groundMeshes = [];
+    let modelScale = 0.02;
+    let cameraFov = 75;
+
+    let speed = { base:5, sprint: 10 };
+    let velocityY = 0;
+    let flying = true;
+    let paused = false;
+    let onGround = false;
+    let yaw = -2.19, pitch = 0.2399;
+    let cameraHolder, cameraPitch;
+    let sprinting = false;
+
+    let groundLevel = 1.6, gravity = -28;
+    const jumpVelocity = 12.5;
+    const fallGravityMultiplier = 1.65;
+    const jumpCutMultiplier = 0.48;
+    const maxFallSpeed = -42;
+    const playerEyeHeight = 1.6;
+    const groundSnapDistance = 0.28;
+    const groundStepUpDistance = 0.32;
+    const groundRecoveryDistance = 0.7;
+    const groundProbeLift = 0.25;
+    const groundRayDirection = new THREE.Vector3(0, -1, 0);
+    const groundProbeOrigin = new THREE.Vector3();
+    const groundRaycaster = new THREE.Raycaster(new THREE.Vector3(), groundRayDirection, 0, 3);
+    let jumpHeld = false;
+    const startYaw = -2.19;
+    const startPitch = 0.2399;
+    let startPosition = new THREE.Vector3(-26.951, 1.66, -15.425);
+    const clock = new THREE.Clock();
+
+    // Analog Joystick Input
+    let joystickInput = { x: 0, y: 0, force: 0 };
+    let verticalInput = 0;
+
+    // Explode / Layer animation
+    let layers = []; // [{ obj, restPos, basePos, targetPos }]
+    let exploded = false;
+    let explodeAnim = { active:false, t:0, duration:0.6 };
+    let explodeGap = 120;
+
+    // Layer visibility state
+    let layerVisibility = new Map(); // name -> boolean
+
+    // --- Sun / Shadows (NEW) ---
+    let sunEnabled = true;
+    let sunTime = 0.82;      // start near sunset vibe
+    let sunSpeed = 0.012;    // slow-ish
+    let sunLight = null;
+    let hemiLight = null;
+    const shadowBounds = new THREE.Box3();
+    const shadowCenter = new THREE.Vector3();
+    let shadowRadius = 40;
+    const waterTime = { value: 0 };
+
+    // UI Elements
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const menu = document.getElementById('menu');
+
+    const speedSlider = document.getElementById('speedSlider');
+    const speedValue = document.getElementById('speedValue');
+    const sprintValue = document.getElementById('sprintValue');
+
+    const scaleSlider = document.getElementById('scaleSlider');
+    const scaleValue = document.getElementById('scaleValue');
+    const fovSlider = document.getElementById('fovSlider');
+    const fovValue = document.getElementById('fovValue');
+
+    const resetBtn = document.getElementById('resetPosition');
+    const closeMenuBtn = document.getElementById('closeMenu');
+    const flyToggle = document.getElementById('flyToggle');
+    const sunToggle = document.getElementById('sunToggle');
+
+    const toggleExplodeBtn = document.getElementById('toggleExplode');
+
+    const mobileControls = document.getElementById('mobileControls');
+    const btnUp = document.getElementById('btnUp');
+    const btnDown = document.getElementById('btnDown');
+    const btnMenu = document.getElementById('btnMenu');
+    const btnExplode = document.getElementById('btnExplode');
+    const btnLayers = document.getElementById('btnLayers');
+    const btnSpeedUp = document.getElementById('btnSpeedUp');
+    const btnSpeedDown = document.getElementById('btnSpeedDown');
+
+    // Mobile layer panel elements
+    const layerPanel = document.getElementById('layerPanel');
+    const layerList = document.getElementById('layerList');
+    const btnCloseLayerPanel = document.getElementById('btnCloseLayerPanel');
+    const btnLayersAllOn = document.getElementById('btnLayersAllOn');
+    const btnLayersAllOff = document.getElementById('btnLayersAllOff');
+
+    // Touch‐Look State
+    let cameraTouchActive = false;
+    let cameraTouchId = null;
+    let lastTouchX = 0, lastTouchY = 0;
+    const touchLookFactor = 0.0070;
+
+    const desktopControls = document.getElementById('desktopControls');
+    const desktopMenu = document.getElementById('desktopMenu');
+    const desktopExplode = document.getElementById('desktopExplode');
+    const desktopLayers = document.getElementById('desktopLayers');
+    const desktopReset = document.getElementById('desktopReset');
+    const pointerState = document.getElementById('pointerState');
+
+    const coarsePointerQuery = window.matchMedia('(pointer: coarse)');
+    let adaptiveControlMode = null;
+    let mobileControlsReady = false;
+    const keyboardInput = {
+      forward: false,
+      backward: false,
+      left: false,
+      right: false,
+      up: false,
+      down: false
+    };
+    let desktopControlsReady = false;
+    let pointerLocked = false;
+    let mouseLookFactor = 0.0025;
+    let targetYaw = 0;
+    let targetPitch = 0;
+    let pendingMouseX = 0;
+    let pendingMouseY = 0;
+    let skipNextMouseMove = false;
+    const maxMouseDeltaPerEvent = 45;
+    const maxMouseDeltaPerFrame = 90;
+    const mouseSmoothing = 24;
+    let selectedLayerIndex = 0;
+    let lastSpaceTapTime = 0;
+    const spaceDoubleTapMs = 320;
+
+    // Fly-Mode Toggle
+    flyToggle.addEventListener('change', e => { flying = e.target.checked; });
+
+    // Sun toggle (NEW)
+    sunToggle.addEventListener('change', e => {
+      sunEnabled = e.target.checked;
+      applySunEnabled();
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      flying = true;
+      flyToggle.checked = true;
+
+      sunEnabled = !!sunToggle.checked;
+
+      loadingSpinner.style.display = 'block';
+      startAppWithModel(MODEL_URL);
+    });
+
+    function shouldUseTouchControls() {
+      return coarsePointerQuery.matches || navigator.maxTouchPoints > 0 || window.innerWidth <= 760;
+    }
+
+    function setControlMode(mode) {
+      if (adaptiveControlMode === mode) return;
+      adaptiveControlMode = mode;
+      if (mode === 'touch' && !mobileControlsReady) {
+        enableMobileControls();
+        mobileControlsReady = true;
+      }
+      document.body.classList.toggle('touch-mode', mode === 'touch');
+      document.body.classList.toggle('desktop-mode', mode === 'desktop');
+      mobileControls.style.display = mode === 'touch' ? 'block' : 'none';
+      desktopControls.style.display = mode === 'desktop' ? 'flex' : 'none';
+      if (mode === 'desktop') releaseTouchInputs();
+      else releasePointerControl();
+    }
+
+    function updateAdaptiveControlMode() {
+      setControlMode(shouldUseTouchControls() ? 'touch' : 'desktop');
+      updatePointerState();
+    }
+
+    function releaseTouchInputs() {
+      joystickInput.x = 0;
+      joystickInput.y = 0;
+      joystickInput.force = 0;
+      verticalInput = 0;
+      cameraTouchActive = false;
+      cameraTouchId = null;
+    }
+
+    function setupAdaptiveControls() {
+      enableDesktopControls();
+      updateAdaptiveControlMode();
+      coarsePointerQuery.addEventListener?.('change', updateAdaptiveControlMode);
+      window.addEventListener('resize', updateAdaptiveControlMode);
+      window.addEventListener('touchstart', () => setControlMode('touch'), { passive: true });
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Tab' || e.code?.startsWith('Key') || e.code === 'Space') setControlMode('desktop');
+      });
+    }
+
+    function getLayerLabel(objName, fallbackIndex) {
+      if (objName && LAYER_LABELS[objName]) return LAYER_LABELS[objName];
+      return objName || `Layer ${fallbackIndex + 1}`;
+    }
+
+    function updateSpeedUI() {
+      speedValue.textContent = speed.base.toFixed(1);
+      sprintValue.textContent = speed.sprint.toFixed(1);
+    }
+    function updateScaleUI() { scaleValue.textContent = modelScale.toFixed(2); }
+    function updateFovUI() { fovValue.textContent = Math.round(cameraFov); }
+
+    function setMovementSpeed(newSpeed) {
+      const min = parseFloat(speedSlider.min);
+      const max = parseFloat(speedSlider.max);
+      speed.base = THREE.MathUtils.clamp(newSpeed, min, max);
+      speed.sprint = speed.base * 2;
+      speedSlider.value = speed.base.toFixed(1);
+      updateSpeedUI();
+    }
+
+    speedSlider.oninput = () => {
+      setMovementSpeed(parseFloat(speedSlider.value));
+    };
+
+    function bindTapButton(button, handler) {
+      let lastTouch = 0;
+      button.addEventListener('touchend', e => {
+        e.preventDefault();
+        lastTouch = performance.now();
+        handler();
+      }, { passive: false });
+      button.addEventListener('click', e => {
+        if (performance.now() - lastTouch < 450) return;
+        e.preventDefault();
+        handler();
+      });
+    }
+
+    function stepMobileSpeed(direction) {
+      const step = document.body.classList.contains('embedded') ? 1 : 2;
+      setMovementSpeed(speed.base + direction * step);
+    }
+    scaleSlider.oninput = () => scaleModel(parseFloat(scaleSlider.value));
+    fovSlider.oninput = () => setCameraFov(parseFloat(fovSlider.value));
+
+    resetBtn.onclick = () => resetPosition();
+    closeMenuBtn.onclick = () => menu.style.display = 'none';
+
+    toggleExplodeBtn.onclick = () => toggleExplode();
+    if (btnExplode) {
+      btnExplode.addEventListener('touchend', e => {
+        e.preventDefault();
+        toggleExplode();
+      }, { passive:false });
+    }
+
+    function scaleModel(newScale) {
+      if (!model) return;
+      model.scale.set(newScale, newScale, newScale);
+      modelScale = newScale;
+      fitModelLighting();
+      scaleSlider.value = modelScale.toFixed(3);
+      updateScaleUI();
+    }
+
+    function setCameraFov(newFov) {
+      cameraFov = THREE.MathUtils.clamp(newFov, 35, 110);
+      fovSlider.value = cameraFov.toFixed(0);
+      updateFovUI();
+      if (!camera) return;
+      camera.fov = cameraFov;
+      camera.updateProjectionMatrix();
+    }
+
+    function resetPosition() {
+      applyHardcodedStartView();
+      velocityY = 0;
+    }
+
+    function applyHardcodedStartView() {
+      if (!cameraHolder || !cameraPitch) return;
+      cameraHolder.position.copy(startPosition);
+      yaw = startYaw;
+      pitch = startPitch;
+      targetYaw = yaw;
+      targetPitch = pitch;
+      cameraHolder.rotation.y = yaw;
+      cameraPitch.rotation.x = pitch;
+    }
+
+    function setCameraLookAt(target) {
+      if (!cameraHolder || !cameraPitch) return;
+
+      const dir = target.clone().sub(cameraHolder.position).normalize();
+      yaw = Math.atan2(-dir.x, -dir.z);
+      pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+      pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+      targetYaw = yaw;
+      targetPitch = pitch;
+      cameraHolder.rotation.y = yaw;
+      cameraPitch.rotation.x = pitch;
+    }
+
+    function lookAtModelCenter() {
+      if (!model) return;
+      const box = new THREE.Box3().setFromObject(model);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      setCameraLookAt(center);
+    }
+
+    function placeDesktopCameraForModel() {
+      applyHardcodedStartView();
+      velocityY = 0;
+    }
+
+    function prepareWaterGeometry(source) {
+      const position = source.getAttribute('position');
+      const normal = source.getAttribute('normal');
+      const vertices = Array.from({ length: position.count }, (_, i) =>
+        new THREE.Vector3().fromBufferAttribute(position, i));
+      // The exported blocks duplicate corners for their flat normals and UV seams.
+      const columnKey = p => Math.round(p.x) + ',' + Math.round(p.z);
+      const columns = new Map();
+      for (const p of vertices) {
+        const key = columnKey(p);
+        const column = columns.get(key) ?? { bottom: p.y, top: p.y };
+        column.bottom = Math.min(column.bottom, p.y);
+        column.top = Math.max(column.top, p.y);
+        columns.set(key, column);
+      }
+
+      const faces = [];
+      const rim = [];
+      const index = source.index;
+      for (let i = 0; i < index.count; i += 3) {
+        const ids = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+        const corners = ids.map(id => vertices[id]);
+        const faceNormal = new THREE.Vector3().fromBufferAttribute(normal, ids[0]);
+        const column = columns.get(columnKey(corners[0]));
+        faces.push({ corners, faceNormal, depth: column.top - column.bottom });
+        if (Math.abs(faceNormal.y) < 0.1) {
+          const edge = corners.filter(p => Math.abs(p.y - column.top) < 0.1);
+          if (edge.length === 2) rim.push(new THREE.Line3(edge[0], edge[1]));
+        }
+      }
+
+      const positions = [], normals = [], waterData = [], indices = [];
+      const point = new THREE.Vector3(), closest = new THREE.Vector3();
+      for (const { corners: [a, b, c], faceNormal, depth } of faces) {
+        const surface = faceNormal.y > 0.95;
+        const steps = surface ? 48 : 1;
+        let row = positions.length / 3;
+        for (let i = 0; i <= steps; i++) {
+          const nextRow = row + steps - i + 1;
+          for (let j = 0; j <= steps - i; j++) {
+            point.copy(a).multiplyScalar((steps - i - j) / steps)
+              .addScaledVector(b, i / steps).addScaledVector(c, j / steps);
+            let weight = 0;
+            if (surface) {
+              let distance = Infinity;
+              for (const edge of rim) {
+                edge.closestPointToPoint(point, true, closest);
+                distance = Math.min(distance, point.distanceTo(closest));
+              }
+              weight = THREE.MathUtils.smoothstep(distance, 0.05, 100);
+            }
+            positions.push(point.x, point.y, point.z);
+            normals.push(faceNormal.x, faceNormal.y, faceNormal.z);
+            waterData.push(weight, depth);
+            if (j < steps - i) indices.push(row + j, nextRow + j, row + j + 1);
+            if (j + 1 < steps - i) indices.push(nextRow + j, nextRow + j + 1, row + j + 1);
+          }
+          row = nextRow;
+        }
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geometry.setAttribute('waterData', new THREE.Float32BufferAttribute(waterData, 2));
+      geometry.setIndex(indices);
+      return geometry;
+    }
+
+    function configureWater(mesh) {
+      mesh.geometry = prepareWaterGeometry(mesh.geometry);
+      mesh.castShadow = false;
+      const material = mesh.material;
+      material.map = null;
+      material.color.set(0xf5fffc);
+      material.roughness = 0.085;
+      material.specularIntensity = 1;
+      material.ior = 1.333;
+      material.transmission = 0.98;
+      material.thickness = 1;
+      material.attenuationColor.set(0x78d4cb);
+      material.attenuationDistance = 3.2;
+      material.envMapIntensity = 1;
+      material.side = THREE.FrontSide;
+
+      material.onBeforeCompile = shader => {
+        shader.uniforms.waterTime = waterTime;
+        const waveField = `uniform float waterTime;
+          vec3 swell(vec2 p, vec2 dir, float k, float speed, float amplitude) {
+            float phase = k * dot(p, dir) - speed * waterTime;
+            return vec3(dir * (k * amplitude * cos(phase)), amplitude * sin(phase));
+          }
+          vec3 waterField(vec2 p) {
+            return swell(p, vec2(0.94, 0.34), 2.4, 1.65, 0.038)
+                 + swell(p, vec2(-0.45, 0.89), 4.2, 2.15, 0.017);
+          }
+          varying vec2 waterXZ;
+          varying vec3 waterVolume;`;
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nattribute vec2 waterData;\n' + waveField)
+          .replace('#include <begin_vertex>', `#include <begin_vertex>
+            waterXZ = position.xz * 0.002;
+            float height = waterData.x * waterField(waterXZ).z / 0.002;
+            transformed.y += height;
+            waterVolume = vec3(waterData.x, waterData.y + height, length(modelMatrix[1].xyz));`);
+
+        const transmission = THREE.ShaderChunk.transmission_fragment
+          .replace('material.thickness = thickness;', `vec3 waterRay = refract(-normalize(vViewPosition), normal, 1.0 / ior);
+            vec3 waterUp = normalize((viewMatrix * modelMatrix)[1].xyz);
+            material.thickness = waterVolume.y / max(0.55, abs(dot(waterRay, waterUp)));`);
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\n' + waveField)
+          .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+            vec2 rippleDir = vec2(0.62, -0.78);
+            float phase = 17.0 * dot(waterXZ, rippleDir) - 3.4 * waterTime;
+            float detail = 1.0 - smoothstep(0.6, 2.4, fwidth(phase));
+            vec2 slope = waterVolume.x * (waterField(waterXZ).xy + rippleDir * (0.034 * cos(phase) * detail));
+            normal = normalize(normal - mat3(viewMatrix) * vec3(slope.x, 0.0, slope.y));`)
+          .replace('#include <transmission_fragment>', transmission + `
+            // Single scattering over the same optical path used for absorption.
+            float pathLength = material.thickness * waterVolume.z;
+            vec3 throughput = pow(material.attenuationColor, vec3(pathLength / material.attenuationDistance));
+            vec3 incident = vec3(0.19, 0.24, 0.27);
+            #if NUM_DIR_LIGHTS > 0
+              float mu = dot(-directionalLights[0].direction, normalize(vViewPosition));
+              float phaseHG = 0.7975 / pow(1.2025 - 0.9 * mu, 1.5);
+              incident += 0.16 * directionalLights[0].color * phaseHG;
+            #endif
+            totalDiffuse += (1.0 - throughput) * vec3(0.12, 0.52, 0.48) * incident;`);
+      };
+    }
+
+    function setupLoadedModel(gltf) {
+      loadingSpinner.style.display = 'none';
+
+      if (model) scene.remove(model);
+
+      model = gltf.scene;
+      model.scale.set(modelScale, modelScale, modelScale);
+      model.position.set(0,0,0);
+      scene.add(model);
+
+      layers = collectLayersFromModel(model);
+      exploded = false;
+      toggleExplodeBtn.textContent = "Schichten aufklappen";
+      applyLayerVisibility();
+      renderLayerList();
+
+      groundMeshes = [];
+      gltf.scene.traverse(child => {
+        if (child.isMesh) {
+          groundMeshes.push(child);
+          child.castShadow = true;
+          child.receiveShadow = true;
+          const material = child.material;
+          if (child.name === 'L_12' && material.isMeshPhysicalMaterial) {
+            configureWater(child);
+          } else if (material.isMeshPhysicalMaterial) {
+            const steel = child.name === 'L_05';
+            const wood = child.name === 'L_14' || child.name === 'L_16';
+            material.roughness = steel ? 0.66 : wood ? 0.72 : 0.94;
+            material.specularIntensity = wood ? 0.45 : 0.3;
+            material.metalness = steel ? 0.28 : 0;
+            material.envMapIntensity = 0.55;
+          }
+          if (material.map) {
+            material.map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+          }
+        }
+      });
+
+      fitModelLighting();
+      if (environmentGround) groundMeshes.push(environmentGround);
+      placeDesktopCameraForModel();
+    }
+
+    // ---- Layer Visibility helpers ----
+    function applyLayerVisibility() {
+      if (!layers.length) return;
+      for (const L of layers) {
+        const key = L.obj.name;
+        const isVisible = layerVisibility.has(key) ? layerVisibility.get(key) : true;
+        L.obj.visible = isVisible;
+      }
+    }
+
+function setAllLayersVisible(visible) {
+  if (!layers.length) return;
+  for (const L of layers) layerVisibility.set(L.obj.name, !!visible);
+  applyLayerVisibility();
+
+  if (exploded) {
+    for (const L of layers) L.basePos = L.obj.position.clone();
+    explodeAnim.active = true;
+    explodeAnim.t = 0;
+    setExplodeTargets(true);
+  }
+
+  renderLayerList();
+}
+
+
+    function renderLayerList() {
+      if (!layerList) return;
+
+      if (!layers.length) {
+        layerList.innerHTML = `<div style="color:#aaa; padding:10px 0;">Keine Layer gefunden.</div>`;
+        return;
+      }
+
+      const rows = layers
+        .slice()
+        .reverse()
+        .map((L, revIdx) => {
+          const originalIdx = layers.length - 1 - revIdx;
+
+          const objName = L.obj.name || `Layer_${originalIdx + 1}`;
+          const label = getLayerLabel(L.obj.name, originalIdx);
+          const checked = layerVisibility.has(objName) ? layerVisibility.get(objName) : true;
+
+          return `
+            <label class="layer-toggle-row" style="
+              display:flex; align-items:center; gap:10px;
+              padding:8px 2px; border-bottom:1px solid rgba(255,255,255,0.08);
+            ">
+              <span class="layer-name">${label}</span>
+              <input class="layer-toggle-input" type="checkbox" data-layer="${objName}" ${checked ? 'checked' : ''}>
+              <span class="layer-switch"></span>
+            </label>
+          `;
+        })
+        .join('');
+
+      layerList.innerHTML = rows;
+
+      layerList.querySelectorAll('input[type="checkbox"][data-layer]').forEach(cb => {
+        cb.addEventListener(
+          'change',
+          (e) => {
+            const name = e.target.getAttribute('data-layer');
+layerVisibility.set(name, e.target.checked);
+applyLayerVisibility();
+
+if (exploded) {
+  // neue Abstände ohne "Lücken" berechnen + smooth animieren
+  for (const L of layers) L.basePos = L.obj.position.clone();
+  explodeAnim.active = true;
+  explodeAnim.t = 0;
+  setExplodeTargets(true);
+}
+
+            applyLayerVisibility();
+          },
+          { passive: true }
+        );
+      });
+
+      updateLayerKeyboardSelection();
+    }
+
+    function openLayerPanel() {
+      if (!model) return;
+      layerPanel.style.display = 'block';
+      renderLayerList();
+      selectedLayerIndex = Math.min(selectedLayerIndex, getLayerCheckboxes().length - 1);
+      if (selectedLayerIndex < 0) selectedLayerIndex = 0;
+      updateLayerKeyboardSelection();
+    }
+
+    function closeLayerPanel() {
+      layerPanel.style.display = 'none';
+    }
+
+    function getLayerCheckboxes() {
+      if (!layerList) return [];
+      return Array.from(layerList.querySelectorAll('input[type="checkbox"][data-layer]'));
+    }
+
+    function updateLayerKeyboardSelection() {
+      const checkboxes = getLayerCheckboxes();
+      const labels = Array.from(layerList.querySelectorAll('label'));
+      labels.forEach(label => label.classList.remove('layer-selected'));
+
+      if (!checkboxes.length) return;
+      selectedLayerIndex = THREE.MathUtils.clamp(selectedLayerIndex, 0, checkboxes.length - 1);
+      const checkbox = checkboxes[selectedLayerIndex];
+      const label = checkbox.closest('label');
+      if (label) {
+        label.classList.add('layer-selected');
+        label.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function handleLayerKeyboard(e) {
+      if (layerPanel.style.display !== 'block') return false;
+
+      const checkboxes = getLayerCheckboxes();
+      if (!checkboxes.length) return false;
+
+      if (e.code === 'ArrowDown') {
+        selectedLayerIndex = Math.min(selectedLayerIndex + 1, checkboxes.length - 1);
+        updateLayerKeyboardSelection();
+        return true;
+      }
+
+      if (e.code === 'ArrowUp') {
+        selectedLayerIndex = Math.max(selectedLayerIndex - 1, 0);
+        updateLayerKeyboardSelection();
+        return true;
+      }
+
+      if (e.code === 'Enter') {
+        const checkbox = checkboxes[selectedLayerIndex];
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        updateLayerKeyboardSelection();
+        return true;
+      }
+
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+        const checkbox = checkboxes[selectedLayerIndex];
+        checkbox.checked = e.code === 'ArrowRight';
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        updateLayerKeyboardSelection();
+        return true;
+      }
+
+      return false;
+    }
+
+    // prevent layer panel touch from controlling camera
+    ['touchstart','touchmove','touchend'].forEach(evtName => {
+      layerPanel.addEventListener(evtName, (e) => {
+        e.stopPropagation();
+      }, { passive:false });
+    });
+
+    // ---- Sun / Shadows helpers (NEW) ----
+    function applySunEnabled() {
+      if (!renderer) return;
+
+      if (sunLight) sunLight.visible = !!sunEnabled;
+      if (hemiLight) hemiLight.intensity = sunEnabled ? 0.7 : 1.55;
+
+      // disable shadow rendering when sun is off (saves GPU)
+      renderer.shadowMap.enabled = !!sunEnabled;
+    }
+
+    function updateSun(delta) {
+      if (!sunEnabled || !sunLight || !scene) return;
+
+      sunTime += sunSpeed * delta;
+      if (sunTime > 1) sunTime -= 1;
+
+      const azimuth = sunTime * Math.PI * 2;
+      const elevation = 0.65 + 0.12 * Math.sin(azimuth);
+      sunLight.position.set(
+        Math.cos(azimuth) * Math.cos(elevation),
+        Math.sin(elevation),
+        Math.sin(azimuth) * Math.cos(elevation)
+      ).multiplyScalar(2 * shadowRadius).add(shadowCenter);
+    }
+    // -------------------------------
+
+    // ---- Explode helpers ----
+    function parseLayerIndex(name) {
+      const m = /^L_(\d+)/.exec(name || "");
+      return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+    }
+
+    function collectLayersFromModel(root) {
+      const candidates = [];
+      root.traverse(obj => {
+        if (obj.name && obj.name.startsWith("L_")) candidates.push(obj);
+      });
+
+      if (candidates.length === 0) {
+        root.children.forEach(ch => {
+          let hasGeo = false;
+          ch.traverse(n => { if (n.isMesh && n.geometry) hasGeo = true; });
+          if (hasGeo) candidates.push(ch);
+        });
+      }
+
+      return candidates.map(obj => {
+        const box = new THREE.Box3().setFromObject(obj);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        return {
+          obj,
+          restPos: obj.position.clone(),
+          basePos: obj.position.clone(),
+          yCenter: center.y,
+          targetPos: obj.position.clone()
+        };
+      }).sort((a,b) => parseLayerIndex(a.obj.name) - parseLayerIndex(b.obj.name));
+    }
+
+function isLayerVisibleByState(L) {
+  const key = L.obj.name;
+  return layerVisibility.has(key) ? layerVisibility.get(key) : true;
+}
+
+function setExplodeTargets(open) {
+  if (!layers.length) return;
+
+  let visibleIndex = 0;
+
+  for (let i = 0; i < layers.length; i++) {
+    const L = layers[i];
+    const isVisible = isLayerVisibleByState(L);
+
+    if (open) {
+      if (isVisible) {
+        const offsetY = visibleIndex * explodeGap;
+        visibleIndex++;
+        L.targetPos = L.restPos.clone().add(new THREE.Vector3(0, offsetY, 0));
+      } else {
+        // Unsichtbare Layer "zählen" nicht und bleiben an der Rest-Position
+        L.targetPos = L.restPos.clone();
+      }
+    } else {
+      L.targetPos = L.restPos.clone();
+    }
+  }
+}
+
+
+    function startExplodeAnimation(open) {
+      exploded = open;
+      explodeAnim.active = true;
+      explodeAnim.t = 0;
+      setExplodeTargets(open);
+
+      toggleExplodeBtn.textContent = open ? "Schichten schließen" : "Schichten aufklappen";
+    }
+
+    function toggleExplode() {
+      if (!model) return;
+
+      if (!layers.length) layers = collectLayersFromModel(model);
+
+      for (const L of layers) L.basePos = L.obj.position.clone();
+
+      startExplodeAnimation(!exploded);
+    }
+
+    function easeInOutCubic(x) {
+      return x < 0.5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3) / 2;
+    }
+
+    function updateExplodeAnimation(delta) {
+      if (!explodeAnim.active || !layers.length) return;
+
+      explodeAnim.t += delta;
+      const u = Math.min(explodeAnim.t / explodeAnim.duration, 1);
+      const e = easeInOutCubic(u);
+
+      for (const L of layers) {
+        const from = L.basePos;
+        const to = L.targetPos ?? L.basePos;
+        L.obj.position.lerpVectors(from, to, e);
+      }
+      fitModelLighting();
+
+      if (u >= 1) explodeAnim.active = false;
+    }
+    // ------------------------
+
+    function createEnvironment() {
+      environmentGroup = new THREE.Group();
+      environmentGroup.name = "DesktopEnvironment";
+
+      const sky = document.createElement('canvas');
+      sky.width = 512;
+      sky.height = 256;
+      const ctx = sky.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, sky.height);
+      gradient.addColorStop(0, '#719ac2');
+      gradient.addColorStop(0.42, '#c4d6df');
+      gradient.addColorStop(0.50, '#ede6d7');
+      gradient.addColorStop(0.58, '#a7ab99');
+      gradient.addColorStop(1, '#73796a');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, sky.width, sky.height);
+      const skyTexture = new THREE.CanvasTexture(sky);
+      skyTexture.colorSpace = THREE.SRGBColorSpace;
+      skyTexture.mapping = THREE.EquirectangularReflectionMapping;
+      scene.background = skyTexture;
+      scene.environment = skyTexture;
+      scene.fog = new THREE.Fog(0xede6d7, 100, 620);
+
+      const groundGeometry = new THREE.PlaneGeometry(1800, 1800, 1, 1);
+      const groundMaterial = new THREE.MeshStandardMaterial({
+        color: 0x56685a,
+        roughness: 0.92,
+        metalness: 0.02
+      });
+      environmentGround = new THREE.Mesh(groundGeometry, groundMaterial);
+      environmentGround.name = "EnvironmentGround";
+      environmentGround.rotation.x = -Math.PI / 2;
+      environmentGround.position.y = -0.04;
+      environmentGround.receiveShadow = true;
+      environmentGroup.add(environmentGround);
+
+      scene.add(environmentGroup);
+    }
+
+    function fitModelLighting() {
+      shadowBounds.setFromObject(model);
+      shadowBounds.getCenter(shadowCenter);
+      environmentGround.position.y = shadowBounds.min.y - 0.01 * modelScale / 0.02;
+      // A bounding sphere keeps the shadow coverage stable as the sun rotates.
+      shadowRadius = Math.max(1, shadowCenter.distanceTo(shadowBounds.max) * 1.1);
+      sunLight.target.position.copy(shadowCenter);
+      const camera = sunLight.shadow.camera;
+      camera.left = camera.bottom = -shadowRadius;
+      camera.right = camera.top = shadowRadius;
+      camera.near = shadowRadius * 0.25;
+      camera.far = shadowRadius * 4;
+      camera.updateProjectionMatrix();
+      sunLight.shadow.normalBias = shadowRadius / sunLight.shadow.mapSize.width * 0.5;
+    }
+
+    function startAppWithModel(url) {
+      if (!scene) {
+        scene = new THREE.Scene();
+        createEnvironment();
+
+        camera = new THREE.PerspectiveCamera(cameraFov, window.innerWidth/window.innerHeight, 0.1, 1000);
+
+        cameraPitch = new THREE.Object3D();
+        cameraHolder = new THREE.Object3D();
+        cameraPitch.add(camera);
+        cameraHolder.add(cameraPitch);
+        scene.add(cameraHolder);
+
+        cameraHolder.position.copy(startPosition);
+        cameraPitch.rotation.x = pitch;
+        cameraHolder.rotation.y = yaw;
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, shouldUseTouchControls() ? 1.5 : 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Renderer shadows (NEW)
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // --- Lights (NEW warm sunset + sun) ---
+        hemiLight = new THREE.HemisphereLight(0xe2edff, 0xb8a78e, 0.7);
+        scene.add(hemiLight);
+
+        sunLight = new THREE.DirectionalLight(0xffe8c9, 2.4);
+        sunLight.castShadow = true;
+
+        const shadowSize = shouldUseTouchControls() ? 1024 : 2048;
+        sunLight.shadow.mapSize.set(shadowSize, shadowSize);
+        sunLight.shadow.bias = -0.00012;
+        scene.add(sunLight, sunLight.target);
+
+        // init sun state
+        updateSun(0);
+        applySunEnabled();
+        // -------------------------------------
+
+        setupAdaptiveControls();
+
+        updateSpeedUI();
+        updateScaleUI();
+        updateFovUI();
+        animate();
+
+        window.addEventListener('resize', ()=>{
+          camera.aspect = window.innerWidth/window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      }
+
+      loadingSpinner.style.display = 'block';
+
+      const loader = new GLTFLoader();
+
+      loader.load(url, setupLoadedModel, undefined, err => {
+        if (window.location.protocol === 'file:' && url !== LOCAL_MODEL_FALLBACK_URL) {
+          loader.load(LOCAL_MODEL_FALLBACK_URL, setupLoadedModel, undefined, fallbackErr => {
+            loadingSpinner.style.display = 'none';
+            alert("Fehler beim Laden der Datei: " + LOCAL_MODEL_FALLBACK_URL);
+            console.error("GLB load failed", err, fallbackErr);
+          });
+          return;
+        }
+
+        loadingSpinner.style.display = 'none';
+        alert("Fehler beim Laden der Datei: " + url);
+        console.error("GLB load failed", err);
+      });
+    }
+
+    function enableMobileControls() {
+      // Joystick
+      const joystickManager = nipplejs.create({
+        zone: document.getElementById('joystickZone'),
+        mode: 'dynamic',
+        color: '#3fcf8e',
+        size: document.body.classList.contains('embedded') ? 56 : 80
+      });
+
+      joystickManager.on('move', (evt, data) => {
+        joystickInput.x = data.vector.x;
+        joystickInput.y = data.vector.y;
+        joystickInput.force = Math.min(data.force, 1);
+      });
+
+      joystickManager.on('end', () => {
+        joystickInput.x = joystickInput.y = joystickInput.force = 0;
+      });
+
+      // ↑
+      btnUp.addEventListener('touchstart', e => {
+        e.preventDefault();
+        verticalInput =  1;
+      }, { passive: false });
+
+      btnUp.addEventListener('touchend', e => {
+        e.preventDefault();
+        verticalInput =  0;
+      }, { passive: false });
+
+      // ↓
+      btnDown.addEventListener('touchstart', e => {
+        e.preventDefault();
+        verticalInput = -1;
+      }, { passive: false });
+
+      btnDown.addEventListener('touchend', e => {
+        e.preventDefault();
+        verticalInput =  0;
+      }, { passive: false });
+
+      btnMenu.addEventListener('touchend', e => {
+        e.preventDefault();
+        menu.style.display='block';
+      }, { passive:false });
+
+      bindTapButton(btnSpeedUp, () => stepMobileSpeed(1));
+      bindTapButton(btnSpeedDown, () => stepMobileSpeed(-1));
+
+      // Layers panel toggle
+      if (btnLayers) {
+        btnLayers.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          if (layerPanel.style.display === 'block') closeLayerPanel();
+          else openLayerPanel();
+        }, { passive:false });
+      }
+
+      if (btnCloseLayerPanel) {
+        btnCloseLayerPanel.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          closeLayerPanel();
+        }, { passive:false });
+      }
+
+      if (btnLayersAllOn) {
+        btnLayersAllOn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          setAllLayersVisible(true);
+        }, { passive:false });
+      }
+
+      if (btnLayersAllOff) {
+        btnLayersAllOff.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          setAllLayersVisible(false);
+        }, { passive:false });
+      }
+
+      // Kamera‐Touch (rechte Bildschirmhälfte)
+      renderer.domElement.addEventListener('touchstart', e => {
+        for (let touch of e.changedTouches) {
+          if (cameraTouchId === null && touch.clientX > window.innerWidth / 2) {
+            if (layerPanel.style.display === 'block') {
+              const rect = layerPanel.getBoundingClientRect();
+              if (touch.clientX >= rect.left && touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                continue;
+              }
+            }
+
+            cameraTouchId = touch.identifier;
+            cameraTouchActive = true;
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+            e.preventDefault();
+          }
+        }
+      }, { passive: false });
+
+      renderer.domElement.addEventListener('touchmove', e => {
+        if (!cameraTouchActive) return;
+        for (let touch of e.changedTouches) {
+          if (touch.identifier === cameraTouchId) {
+            const dx = touch.clientX - lastTouchX;
+            const dy = touch.clientY - lastTouchY;
+
+            yaw   -= dx * touchLookFactor;
+            pitch -= dy * touchLookFactor;
+
+            pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+            targetYaw = yaw;
+            targetPitch = pitch;
+            cameraHolder.rotation.y = yaw;
+            cameraPitch.rotation.x = pitch;
+
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+            e.preventDefault();
+          }
+        }
+      }, { passive: false });
+
+      renderer.domElement.addEventListener('touchend', e => {
+        for (let touch of e.changedTouches) {
+          if (touch.identifier === cameraTouchId) {
+            cameraTouchActive = false;
+            cameraTouchId = null;
+          }
+        }
+      }, { passive: false });
+    }
+
+    function isTypingTarget(target) {
+      return target && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName);
+    }
+
+    function setKeyState(e, pressed) {
+      if (isTypingTarget(e.target) && e.key !== 'Tab') return false;
+
+      switch (e.code) {
+        case 'KeyW':
+          keyboardInput.forward = pressed;
+          return true;
+        case 'KeyS':
+          keyboardInput.backward = pressed;
+          return true;
+        case 'KeyA':
+          keyboardInput.left = pressed;
+          return true;
+        case 'KeyD':
+          keyboardInput.right = pressed;
+          return true;
+        case 'Space':
+          keyboardInput.up = pressed;
+          return true;
+        case 'ShiftLeft':
+        case 'ShiftRight':
+          keyboardInput.down = pressed;
+          return true;
+        default:
+          return false;
+      }
+    }
+
+    function updatePointerState() {
+      const compactEmbedded =
+        document.body.classList.contains('embedded') && window.innerWidth <= 560;
+      pointerState.textContent = pointerLocked
+        ? 'Tab: Menü'
+        : compactEmbedded
+          ? 'Klick: Maussteuerung'
+          : 'Tab/Klick: Maussteuerung';
+      document.body.style.cursor = pointerLocked ? 'none' : 'default';
+    }
+
+    function requestPointerControl() {
+      if (!renderer || document.pointerLockElement === renderer.domElement) return;
+      renderer.domElement.requestPointerLock?.();
+    }
+
+    function releasePointerControl() {
+      if (document.pointerLockElement) document.exitPointerLock?.();
+    }
+
+    function togglePointerControl() {
+      if (pointerLocked) releasePointerControl();
+      else requestPointerControl();
+    }
+
+    function toggleFlyMode() {
+      flying = !flying;
+      flyToggle.checked = flying;
+      velocityY = 0;
+    }
+
+    function jumpIfGrounded() {
+      if (flying || !onGround) return false;
+      velocityY = jumpVelocity;
+      onGround = false;
+      jumpHeld = true;
+      return true;
+    }
+
+    function findGroundBelow(currentY, nextY, delta) {
+      if (!groundMeshes.length) return null;
+
+      const fallDistance = Math.max(0, currentY - nextY, Math.abs(velocityY) * delta);
+      const rayStartY = Math.max(currentY, nextY) + groundProbeLift;
+      const rayLength = groundProbeLift + playerEyeHeight + groundSnapDistance + groundRecoveryDistance + fallDistance;
+
+      groundProbeOrigin.set(cameraHolder.position.x, rayStartY, cameraHolder.position.z);
+      groundRaycaster.ray.origin.copy(groundProbeOrigin);
+      groundRaycaster.far = rayLength;
+
+      const hits = groundRaycaster.intersectObjects(groundMeshes, false);
+      if (!hits.length) return null;
+
+      const minStandY = Math.min(currentY, nextY) - groundRecoveryDistance;
+      const maxStandY = Math.max(currentY, nextY) + groundStepUpDistance;
+
+      for (const hit of hits) {
+        const standY = hit.point.y + playerEyeHeight;
+        if (standY >= minStandY && standY <= maxStandY) return standY;
+      }
+
+      return null;
+    }
+
+    function updateGroundedVertical(delta) {
+      const currentY = cameraHolder.position.y;
+      const gravityScale = velocityY < 0 ? fallGravityMultiplier : 1;
+      velocityY += gravity * gravityScale * delta;
+      velocityY = Math.max(velocityY, maxFallSpeed);
+
+      let nextY = currentY + velocityY * delta;
+      const standY = findGroundBelow(currentY, nextY, delta);
+
+      if (standY !== null && velocityY <= 0 && nextY <= standY + groundSnapDistance) {
+        cameraHolder.position.y = standY;
+        velocityY = 0;
+        onGround = true;
+        jumpHeld = false;
+        return;
+      }
+
+      cameraHolder.position.y = nextY;
+      onGround = false;
+    }
+
+    function handleSpeedShortcut(e) {
+      if (isTypingTarget(e.target)) return false;
+
+      const isPlus = e.key === '+' || e.code === 'NumpadAdd';
+      const isMinus = e.key === '-' || e.code === 'NumpadSubtract';
+      if (!isPlus && !isMinus) return false;
+
+      const step = e.shiftKey ? 5 : 1;
+      setMovementSpeed(speed.base + (isPlus ? step : -step));
+      return true;
+    }
+
+    function handleSpaceDoubleTap(e) {
+      if (e.code !== 'Space' || e.repeat || isTypingTarget(e.target)) return false;
+
+      const now = performance.now();
+      if (now - lastSpaceTapTime <= spaceDoubleTapMs) {
+        toggleFlyMode();
+        lastSpaceTapTime = 0;
+        return true;
+      }
+
+      lastSpaceTapTime = now;
+      return false;
+    }
+
+    function toggleMenuFromKeyboard() {
+      if (menu.style.display === 'block') {
+        menu.style.display = 'none';
+        requestPointerControl();
+        return;
+      }
+
+      releasePointerControl();
+      menu.style.display = 'block';
+    }
+
+    function isPointerToggleClickTarget(target) {
+      if (!target) return false;
+      return !target.closest('button, input, select, textarea, label, #menu, #layerPanel');
+    }
+
+    function enableDesktopControls() {
+      if (desktopControlsReady) return;
+      desktopControlsReady = true;
+
+      desktopMenu.onclick = () => {
+        toggleMenuFromKeyboard();
+      };
+      desktopExplode.onclick = () => toggleExplode();
+      desktopLayers.onclick = () => {
+        if (layerPanel.style.display === 'block') closeLayerPanel();
+        else openLayerPanel();
+      };
+      desktopReset.onclick = () => resetPosition();
+
+      btnCloseLayerPanel.onclick = () => closeLayerPanel();
+      btnLayersAllOn.onclick = () => setAllLayersVisible(true);
+      btnLayersAllOff.onclick = () => setAllLayersVisible(false);
+
+      document.addEventListener('click', e => {
+        if (adaptiveControlMode === 'touch') return;
+        if (!isPointerToggleClickTarget(e.target)) return;
+        if (menu.style.display === 'block') menu.style.display = 'none';
+        togglePointerControl();
+      });
+
+      document.addEventListener('pointerlockchange', () => {
+        pointerLocked = document.pointerLockElement === renderer.domElement;
+        pendingMouseX = 0;
+        pendingMouseY = 0;
+        targetYaw = yaw;
+        targetPitch = pitch;
+        skipNextMouseMove = pointerLocked;
+        updatePointerState();
+      });
+
+      document.addEventListener('mousemove', e => {
+        if (!pointerLocked) return;
+
+        if (skipNextMouseMove) {
+          skipNextMouseMove = false;
+          return;
+        }
+
+        const dx = THREE.MathUtils.clamp(e.movementX || 0, -maxMouseDeltaPerEvent, maxMouseDeltaPerEvent);
+        const dy = THREE.MathUtils.clamp(e.movementY || 0, -maxMouseDeltaPerEvent, maxMouseDeltaPerEvent);
+        pendingMouseX += dx;
+        pendingMouseY += dy;
+      });
+
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          toggleMenuFromKeyboard();
+          return;
+        }
+
+        if (e.code === 'Escape') {
+          releasePointerControl();
+          return;
+        }
+
+        if (handleLayerKeyboard(e)) {
+          e.preventDefault();
+          return;
+        }
+
+        if (handleSpeedShortcut(e)) {
+          e.preventDefault();
+          return;
+        }
+
+        if (handleSpaceDoubleTap(e)) {
+          e.preventDefault();
+          return;
+        }
+
+        if (e.code === 'Space' && !e.repeat && jumpIfGrounded()) {
+          e.preventDefault();
+          return;
+        }
+
+        if (e.code === 'KeyE' && !isTypingTarget(e.target)) {
+          e.preventDefault();
+          toggleExplode();
+          return;
+        }
+
+        if (e.code === 'KeyL' && !isTypingTarget(e.target)) {
+          e.preventDefault();
+          if (layerPanel.style.display === 'block') closeLayerPanel();
+          else openLayerPanel();
+          return;
+        }
+
+        if (setKeyState(e, true)) e.preventDefault();
+      });
+
+      window.addEventListener('keyup', e => {
+        if (e.code === 'Space') {
+          jumpHeld = false;
+          if (!flying && velocityY > 0) velocityY *= jumpCutMultiplier;
+        }
+
+        if (setKeyState(e, false)) e.preventDefault();
+      });
+
+      window.addEventListener('blur', () => {
+        Object.keys(keyboardInput).forEach(key => keyboardInput[key] = false);
+      });
+
+      updatePointerState();
+    }
+
+    function updateDesktopMouseLook() {
+      if (!pendingMouseX && !pendingMouseY) return;
+
+      const dx = THREE.MathUtils.clamp(pendingMouseX, -maxMouseDeltaPerFrame, maxMouseDeltaPerFrame);
+      const dy = THREE.MathUtils.clamp(pendingMouseY, -maxMouseDeltaPerFrame, maxMouseDeltaPerFrame);
+      pendingMouseX = 0;
+      pendingMouseY = 0;
+
+      targetYaw -= dx * mouseLookFactor;
+      targetPitch -= dy * mouseLookFactor;
+      targetPitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, targetPitch));
+    }
+
+    function applySmoothedLook(delta) {
+      const blend = 1 - Math.exp(-mouseSmoothing * delta);
+      yaw = THREE.MathUtils.lerp(yaw, targetYaw, blend);
+      pitch = THREE.MathUtils.lerp(pitch, targetPitch, blend);
+      cameraHolder.rotation.y = yaw;
+      cameraPitch.rotation.x = pitch;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!renderer || !camera) return;
+
+      const delta = Math.min(clock.getDelta(), 0.05);
+      waterTime.value += delta;
+
+      updateExplodeAnimation(delta);
+      updateSun(delta); // NEW
+      updateDesktopMouseLook();
+      applySmoothedLook(delta);
+
+      if (!paused) {
+        const currentSpeed = sprinting ? speed.sprint : speed.base;
+
+        // Movement vector from the stable yaw value, independent of mouse events.
+        const dir = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+        const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+        const v = new THREE.Vector3();
+        const touchForward = joystickInput.y * joystickInput.force;
+        const touchRight = joystickInput.x * joystickInput.force;
+        const moveForward = (keyboardInput.forward ? 1 : 0) - (keyboardInput.backward ? 1 : 0) + touchForward;
+        const moveRight = (keyboardInput.right ? 1 : 0) - (keyboardInput.left ? 1 : 0) + touchRight;
+        v.addScaledVector(dir, moveForward);
+        v.addScaledVector(right, moveRight);
+        if (v.length() > 1) v.normalize();
+        v.multiplyScalar(currentSpeed * delta);
+
+        cameraHolder.position.add(v);
+
+        const keyboardVerticalInput = (keyboardInput.up ? 1 : 0) - (keyboardInput.down ? 1 : 0);
+        const combinedVerticalInput = THREE.MathUtils.clamp(keyboardVerticalInput + verticalInput, -1, 1);
+
+        // Vertical movement via Space / Shift.
+        if (flying) {
+          cameraHolder.position.y += combinedVerticalInput * currentSpeed * delta;
+        } else {
+          updateGroundedVertical(delta);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>
